@@ -4,3 +4,4 @@ delta: delta.c
 .PHONY: clean
 clean:
 	rm delta
+
