@@ -219,15 +219,15 @@ void editorDrawRows(struct abuf *ab) {
             } else {
                 abAppend(ab, "*", 1);
             }
-
-            abAppend(ab, "\x1b[K", 3);
-            if (y < E.screenrows - 1) {
-                abAppend(ab, "\r\n", 2);
-            }
         } else {
             int len = E.row[y].size;
             if (len > E.screencols) len = E.screencols;
             abAppend(ab, E.row[y].chars, len);
+        }
+
+        abAppend(ab, "\x1b[K", 3);
+        if (y < E.screenrows - 1) {
+            abAppend(ab, "\r\n", 2);
         }
     }
 }
