@@ -179,6 +179,13 @@ void editorRowInsertChar(erow *row, int at, char c) {
     row->chars[at] = c;
     E.dirty++;
 }
+
+void editorRowDeleteChar(erow *row, int at) {
+    if (at < 0 || at >= row->size) return;
+    memmove(&row->chars[at], &row->chars[at + 1], row->size - at);
+    row->size--;
+    E.dirty++;
+}
 #pragma endregion
 
 /*** editor operations ***/
@@ -189,6 +196,16 @@ void editorInsertChar(char c) {
     }
     editorRowInsertChar(&E.row[E.cy], E.cx, c);
     E.cx++;
+}
+
+void editorDeleteChar() {
+    if (E.cy == E.numrows) return;
+
+    erow *row = &E.row[E.cy];
+    if (E.cx > 0) {
+        editorRowDeleteChar(row, E.cx - 1);
+        E.cx--;
+    }
 }
 #pragma endregion
 
@@ -450,8 +467,8 @@ void editorProcessKeypress() {
             if (E.dirty && quit_times > 0) {
                 editorSetStatusMessage("Unsaved changes detected."
                   "Try again %d more times to quit.", quit_times);
-                  quit_times--;
-                  return;
+                quit_times--;
+                return;
             }
             write(STDOUT_FILENO, "\x1b[2J", 4);
             write(STDOUT_FILENO, "\x1b[H", 3);
@@ -474,6 +491,8 @@ void editorProcessKeypress() {
         case BACKSPACE:
         case CTRL_KEY('h'):
         case DEL_KEY:
+            if (c == DEL_KEY) editorMoveCursor(ARROW_RIGHT);
+            editorDeleteChar();
             break;
 
         case PAGE_UP:
