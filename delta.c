@@ -15,6 +15,7 @@
 #pragma region defines
 #define EDITOR "𝜹"
 #define CTRL_KEY(k) ((k) & 0x1f)
+#define QUIT_TIMES 3
 
 enum editorKey {
     BACKSPACE = 127,
@@ -45,6 +46,7 @@ struct editorConfig {
     int screencols;
     int numrows;
     erow *row;
+    int dirty;
     char *filename;
     char statusmsg[80];
     time_t statusmsg_time;
@@ -166,6 +168,7 @@ void editorAppendRow(char *s, size_t len) {
     memcpy(E.row[at].chars, s, len);
     E.row[at].chars[len] = '\0';
     E.numrows++;
+    E.dirty++;
 }
 
 void editorRowInsertChar(erow *row, int at, char c) {
@@ -174,6 +177,7 @@ void editorRowInsertChar(erow *row, int at, char c) {
     memmove(&row->chars[at + 1], &row->chars[at], row->size - at + 1);
     row->size++;
     row->chars[at] = c;
+    E.dirty++;
 }
 #pragma endregion
 
@@ -231,6 +235,7 @@ void editorOpen(char *filename) {
     }
     free(line);
     fclose(fp);
+    E.dirty = 0;
 }
 
 void editorSave() {
@@ -245,6 +250,7 @@ void editorSave() {
             if (write(fd, buf, len) == len) {
                 close(fd);
                 free(buf);
+                E.dirty = 0;
                 editorSetStatusMessage("%d bytes written to disk", len);
                 return;
             }
@@ -329,8 +335,9 @@ void editorDrawStatusBar(struct abuf *ab) {
     abAppend(ab, "\x1b[7m", 4);
     char status[80];
     char rstatus[80];
-    int len = snprintf(status, sizeof(status), "%.20s (%d)",
-      E.filename ? E.filename : "[No Name]", E.numrows);
+    int len = snprintf(status, sizeof(status), "%.20s (%d) %s",
+      E.filename ? E.filename : "[No Name]", E.numrows,
+      E.dirty ? "(modified)" : "");
     int rlen = snprintf(rstatus, sizeof(rstatus), "%d(%d)",
       E.cy + 1, E.numrows);
     if (len > E.screencols) len = E.screencols;
@@ -431,6 +438,8 @@ void editorMoveCursor(int key) {
 }
 
 void editorProcessKeypress() {
+    static int quit_times = QUIT_TIMES;
+
     int c = editorReadKey();
 
     switch (c) {
@@ -438,6 +447,12 @@ void editorProcessKeypress() {
             break;
 
         case CTRL_KEY('z'):
+            if (E.dirty && quit_times > 0) {
+                editorSetStatusMessage("Unsaved changes detected."
+                  "Try again %d more times to quit.", quit_times);
+                  quit_times--;
+                  return;
+            }
             write(STDOUT_FILENO, "\x1b[2J", 4);
             write(STDOUT_FILENO, "\x1b[H", 3);
             exit(0);
@@ -489,6 +504,8 @@ void editorProcessKeypress() {
             editorInsertChar(c);
             break;
     }
+
+    quit_times = QUIT_TIMES;
 }
 #pragma endregion
 
@@ -501,6 +518,7 @@ void initEditor() {
     E.coloff = 0;
     E.numrows = 0;
     E.row = NULL;
+    E.dirty = 0;
     E.filename = NULL;
     E.statusmsg[0] = '\0';
     E.statusmsg_time = 0;
